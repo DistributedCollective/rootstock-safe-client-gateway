@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: '1'
+  labels:
+    app: rootstock-client-gateway
+  name: rootstock-client-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rootstock-client-gateway
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: rootstock-client-gateway
+    spec:
+      containers:
+        - image: sovryn/rootstock-client-gateway
+          imagePullPolicy: Always
+          envFrom:
+          - secretRef:
+              name: rootstock-client-gateway
+          - secretRef:
+              name: rootstock-client-gateway-secret
+          name: web
+          resources:
+            requests:
+              memory: "384Mi"
+              cpu: "100m"
+            limits:
+              memory: "384Mi"
+              cpu: "200m"
+          tty: true
+          volumeMounts:
+            - mountPath: /nginx
+              name: nginx-shared
+        - image: nginx:1.21-alpine
+          name: nginx
+          envFrom:
+          - secretRef:
+              name: rootstock-client-gateway
+          - secretRef:
+              name: rootstock-client-gateway-secret
+          ports:
+            - containerPort: 80
+          resources: {}
+          volumeMounts:
+            - name: nginxconf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - mountPath: /nginx
+              name: nginx-shared
+      restartPolicy: Always
+      volumes:
+        - name: nginx-shared
+          emptyDir: {}
+        - name: nginxconf
+          secret:
+            secretName: rootstock-client-gateway-nginx
+      imagePullSecrets:
+        - name: regcred
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rootstock-client-gateway
+spec:
+  selector:
+    app: rootstock-client-gateway
+  ports:
+    - port: 443
+      targetPort: 80
+  type: NodePort
